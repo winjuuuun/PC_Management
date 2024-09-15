@@ -23,6 +23,7 @@
 #define IDC_EDIT1                       1020
 #define IDC_SEATEDIT                    1020
 #define IDC_COUNTEDIT                   1020
+#define IDC_PCTIMEEDIT                  1020
 #define IDC_SEATBUTTON                  1021
 #define IDC_ITEMLIST                    1022
 #define IDC_JOINBUTTON                  1026
