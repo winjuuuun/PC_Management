@@ -112,11 +112,44 @@ SQLHDBC hDbc;
 SQLHSTMT hStmt;
 
 
+//변수들
+TCHAR usertime[100];
+TCHAR usernick[100];
+TCHAR userpn[100];
+TCHAR useraddr[100];
+TCHAR userbirth[100];
+TCHAR seatmsg[200];
+TCHAR ordermsg[200];
+TCHAR joinmsg[200];
+TCHAR loginmsg[200];
+TCHAR logoutmsg[200];
+TCHAR updatemsg[200];
+TCHAR deletemsg[200];
+TCHAR tgSn[20];
+TCHAR tgId[50];
+TCHAR tgPw[50];
+TCHAR tgNick[50];
+TCHAR tgPn[50];
+TCHAR tgAddr[50];
+TCHAR tgBirth[50];
+TCHAR info[200];
+int turn;
+int infoi;
+int ini;
+TCHAR itemn[10];
+TCHAR itemcount[10];
+int ici;
+int itemni;
+int itemcountn;
 int itemi = 0;
 int exituseri = 0;
 TCHAR orderchk[30];
+TCHAR seatnum[10];
+int seati = 0;
+int seatn;
 
-DWORD WINAPI ClientThreadFunc(LPVOID Param) {
+//팀플//요청 판별하고 처리해주기
+DWORD WINAPI ClientThreadFunc(LPVOID Param) {						
 	int i;
 	int csi = (int)Param;
 	SOCKET clientsock = clientsockar[csi];
@@ -147,54 +180,297 @@ DWORD WINAPI ClientThreadFunc(LPVOID Param) {
 		TCHAR chkexituser[5];
 		lstrcpy(getbuf, "");
 		lstrcpy(getbuf, buf);
-		if (lstrlen(getbuf) == 5|| lstrlen(getbuf) == 6) {				//팀플//좌석명령어 판별
-			for (i = 0; i < 4; i++)chkseatbuf[i] = getbuf[i];
-			chkseatbuf[i] = '\0';
-		}
-		else if (lstrlen(getbuf) == 13|| lstrlen(getbuf) == 23) {		//팀플//로그인인지 회원가입명령어인지 판별(긴게 회원가입)
-			for (i = 0; i < 2; i++)chkjoinlogin[i] = getbuf[i];
-			chkjoinlogin[i] = '\0';
-		}
-		else if (lstrlen(getbuf) >=8) {														//팀플//주문인지 나가기인지 판별						
-			for (i = 0; i < 5; i++)chkorder[i] = getbuf[i];	
-			chkorder[i] = '\0';
-			for (i = 0; i < 4; i++)chkexit[i] = getbuf[i];
-			chkexit[i] = '\0';
-			exituseri = 0;
-			if (lstrcmp(chkexit, "EXIT") == 0) {										//팀플//나가는 유저
-				for (i = 4; i < 8; i++)chkexituser[exituseri++] = getbuf[i];
-				chkexituser[exituseri] = '\0';
+		if (buf[0] == '1') {							//팀플//자리요청
+			for (i = 1; i < 3; i++) {
+				seatnum[seati++] = buf[i];
 			}
+			seatnum[seati] = '\0';
+			seatn = atoi(seatnum);
+			seati = 0;
+			//팀플//좌석번호체크
+			lstrcpy(seatmsg, "11");//팀플//정상일때
+			//lstrcpy(seatmsg, "10");//팀플//아닐때
+			nReturn = send(clientsock,seatmsg, sizeof(seatmsg), 0);
 		}
-		lstrcpy(chkseatmsg, "자리사용가능");
-		lstrcpy(chkjoinmsg, "회원가입성공");
-		lstrcpy(chkloginmsg, "로그인성공");
-		lstrcpy(chkexitmsg, "나가기성공");
-		lstrcpy(chkdelmsg, "탈퇴성공");
-		if (lstrcmp(chkseatbuf, "SEAT") == 0) {									//팀플//자리
-			nReturn = send(clientsock, chkseatmsg, sizeof(chkseatmsg), 0);
-			lstrcpy(chkseatbuf, "");
+		else if (buf[0] == '2') {							//팀플//주문요청
+			itemni = 0;
+			itemn[itemni++] = buf[1];
+			itemn[itemni] = '\0';						//팀플//주문상품받기
+			for (i = 2; i < 4; i++) {
+				itemcount[ici++] = buf[i];
+			}
+			itemcount[ici] = '\0';
+			itemcountn = atoi(itemcount);			//팀플//주문수량 받기
+			for (i = 8; i < 10; i++) {
+				seatnum[seati++] = buf[i];
+			}
+			seatnum[seati] = '\0';						//팀플//자리 받기
+			lstrcpy(ordermsg, "2");
+			lstrcat(ordermsg, itemn);
+			lstrcat(ordermsg, "1");								//팀플// 상품,수량,자리 체크하고 맞으면 성공 메시지 전송
+			//lstrcat(ordermsg, "0");//아닐때
+			nReturn = send(clientsock,ordermsg, sizeof(ordermsg), 0);
+			//좌석번호체크
 		}
-		else if (lstrcmp(chkorder, "ORDER") == 0) {														//팀플//주문
-			itemi = 0;
-			lstrcpy(orderchk, "OC");
-			for (int i = 5; i < lstrlen(getbuf); i++)chkitem[itemi++] = getbuf[i];
-			chkitem[itemi] = '\0';
-			lstrcat(orderchk, chkitem);
-			nReturn = send(clientsock, orderchk, sizeof(orderchk), 0);
-			lstrcpy(chkorder, "");
-		}																												//팀플//아래 순서로 두기
-		else if (lstrcmp(chkjoinlogin, "ID") == 0 && getbuf[12] == '1') {		//팀플//로그인
-			lstrcpy(chkjoinlogin, "");
-			nReturn = send(clientsock, chkloginmsg, sizeof(chkloginmsg), 0);
+		else if (buf[0] == '3') {						//팀플//회원가입
+			turn = -1;
+			i = 1;
+			while (buf[i] != '\0') {
+				infoi = 0;
+				if (buf[i] == ':') {
+					ini = i + 1;
+					turn++;
+				}
+				if (turn == 0) {												//팀플//아이디 받기
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgId, info);
+				}
+				else if (turn == 1) {									//팀플//비번받기
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 4) infoi -= 4;
+					info[infoi] = '\0';
+					lstrcpy(tgPw, info);
+				}
+				else if (turn == 2) {									//팀플//이름 받기
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgNick, info);
+				}
+				else if (turn == 3) {									//팀플//전화번호 받기
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 4) infoi -= 4;
+					info[infoi] = '\0';
+					lstrcpy(tgPn, info);
+				}
+				else if (turn == 4) {									//팀플//주소 받기
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 5) infoi -= 5;
+					info[infoi] = '\0';
+					lstrcpy(tgAddr, info);
+				}
+				else if (turn == 5) {									//팀플//생일 받기
+					while (buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					info[infoi] = '\0';
+					lstrcpy(tgBirth, info);
+					turn = 0;
+					break;
+				}
+				i++;
+			}
+			lstrcpy(joinmsg, "31");										//팀플//위에 받은 정보들 다 체크하고 이상 없으면 성공 메시지 보내기
+			nReturn = send(clientsock, joinmsg, sizeof(joinmsg), 0);		
 		}
-		else if (lstrcmp(chkjoinlogin, "ID") == 0 && getbuf[12] == '2')nReturn = send(clientsock, chkdelmsg, sizeof(chkdelmsg), 0);//팀플//탈퇴
-		else if (lstrcmp(chkjoinlogin, "ID") == 0 && getbuf[22] == '0') {//팀플//회원가입
-			nReturn = send(clientsock, chkjoinmsg, sizeof(chkjoinmsg), 0);
-			lstrcpy(chkjoinlogin, "");
+
+		else if (buf[0] == '4') {										//팀플//로그인 요청
+			i = 1;
+			turn = -1;
+			while (buf[i] != '\0') { //팀플//전체 CMD
+				infoi = 0;
+				if (buf[i] == ':') {
+					ini = i + 1;
+					turn++;
+				}
+				if (turn == 0) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgId, info); //팀플//ID꺼내기
+				}
+				else if (turn == 1) {
+					while (buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					info[infoi] = '\0';
+					lstrcpy(tgPw, info); //팀플//PW꺼내기
+					turn = 0;
+					break;
+				}
+				i++;
+			}
+
+			lstrcpy(loginmsg, "41");
+			//lstrcpy(loginmsg, "40");//팀플//아닐때
+			lstrcpy(usertime, "10");			//팀플//DB에서 아이디와 비번으로 정보 가져오기(남은 시간)
+			//lstrcpy(usertime, "00");	//팀플//남은시간 없을때
+			lstrcpy(usernick, "nick01");				//팀플//계정 정보들...
+			lstrcpy(userpn, "pn01");
+			lstrcpy(useraddr, "addr01");
+			lstrcpy(userbirth, "birth01");
+			lstrcat(loginmsg, usertime);
+			lstrcat(loginmsg, "NICK:");
+			lstrcat(loginmsg, usernick);
+			lstrcat(loginmsg, "PN:");
+			lstrcat(loginmsg, userpn);
+			lstrcat(loginmsg, "ADDR:");
+			lstrcat(loginmsg, useraddr);
+			lstrcat(loginmsg, "BIRTH:");
+			lstrcat(loginmsg, userbirth);
+			nReturn = send(clientsock, loginmsg, sizeof(loginmsg), 0);			//팀플//로그인 하면 계정의 해당 정보들을 클라이언트로 보내주기
 		}
-		else if (lstrcmp(chkexit, "EXIT") == 0)nReturn = send(clientsock, chkexitmsg, sizeof(chkexitmsg), 0);
-		
+		else if (buf[0] == '5') {						//팀플//로그아웃 요청
+			i = 1;
+			turn = -1;
+			while (buf[i] != '\0') { //팀플//전체 CMD
+				infoi = 0;
+				if (buf[i] == ':') {
+					ini = i + 1;
+					turn++;
+				}
+				if (turn == 0) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgId, info); //팀플//ID꺼내기
+				}
+				else if (turn == 1) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgPw, info); //팀플//PW꺼내기
+				}
+				else if (turn == 2) {
+					while (buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					info[infoi] = '\0';
+					lstrcpy(tgSn, info); //팀플//자리 꺼내기
+					turn = 0;
+					break;
+				}
+				i++;
+			}
+
+			lstrcpy(logoutmsg, "51");
+			//lstrcpy(logoutmsg, "50");		//아닐때
+			nReturn = send(clientsock,logoutmsg, sizeof(logoutmsg), 0);			//팀플//아이디,비번,자리 맞으면 로그아웃 성공 메시지 보내기
+		}
+		else if (buf[0] == '6') {						//팀플//수정 요청
+			i = 1;
+			turn = -1;
+			while (buf[i] != '\0') { //팀플//전체 CMD
+				infoi = 0;
+				if (buf[i] == ':') {
+					ini = i + 1;
+					turn++;
+				}
+				if (turn == 0) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgId, info); //팀플//ID꺼내기
+				}
+				else if (turn == 1) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 4) infoi -= 4;
+					info[infoi] = '\0';
+					lstrcpy(tgPw, info); //팀플//PW꺼내기
+				}
+				else if (turn == 2) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgNick, info); //팀플//NICK꺼내기
+				}
+				else if (turn == 3) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 4) infoi -= 4;
+					info[infoi] = '\0';
+					lstrcpy(tgPn, info); //팀플//PN꺼내기
+				}
+				else if (turn == 4) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 5) infoi -= 5;
+					info[infoi] = '\0';
+					lstrcpy(tgAddr, info); //팀플//ADDR꺼내기
+				}
+				else if (turn == 5) {
+					while (buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					info[infoi] = '\0';
+					lstrcpy(tgBirth, info); //팀플//BIRTH꺼내기
+					turn = 0;
+					break;
+				}
+				i++;
+			}
+
+			lstrcpy(updatemsg, "61");
+			//lstrcpy(updatemsg, "60");		//아닐떄
+			nReturn = send(clientsock, updatemsg, sizeof(updatemsg), 0);			//팀플//계정의 모든 정보 이상 없으면 수정 성공메시지 보내기
+		}
+		else if (buf[0] == '7') {							//팀플//탈퇴 요청
+			i = 1;
+			turn = -1;
+			while (buf[i] != '\0') { //팀플//전체 CMD
+				infoi = 0;
+				if (buf[i] == ':') {
+					ini = i + 1;
+					turn++;
+				}
+				if (turn == 0) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgId, info); //팀플//ID꺼내기
+				}
+				else if (turn == 1) {
+					while (buf[ini] != ':' && buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					if (infoi >= 2) infoi -= 2;
+					info[infoi] = '\0';
+					lstrcpy(tgPw, info); //팀플//PW꺼내기
+				}
+				else if (turn == 2) {
+					while (buf[ini] != '\0') {
+						info[infoi++] = buf[ini++];
+					}
+					info[infoi] = '\0';
+					lstrcpy(tgSn, info); //팀플//자리 꺼내기
+					turn = 0;
+					break;
+				}
+				i++;
+			}
+
+			lstrcpy(deletemsg, "71");
+			//lstrcpy(deletemsg, "70");		//아닐때
+			nReturn = send(clientsock, deletemsg, sizeof(deletemsg), 0);				//팀플//아이디, 비번, 자리 맞으면 탈퇴 성공 메시지 보내기
+		}
 			sprintf_s(strTemp, "수신한 메시지:%s : %d", buf, clientsock);	//팀플//수신한 모든 메시지 에디트박스에 띄우기
 			hChatEdit = GetDlgItem(hWndDlg, IDC_CHATSERVERLIST);
 			int len = GetWindowTextLength(hChatEdit);
